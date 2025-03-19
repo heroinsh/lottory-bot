@@ -13,8 +13,8 @@ from datetime import datetime, timedelta
 import uuid
 
 # Bot settings
-TOKEN = ''
-ADMIN_USER_ID = 
+TOKEN = '7741627005:AAHUAzYpILWE1HpeGzOJJdn0_1eJW0qoTwg'
+ADMIN_USER_ID = 7428128601
 DB_NAME = 'lottery_bot.db'
 
 # Logging setup
@@ -168,7 +168,7 @@ texts = {
 • شفافیت در نتایج قرعه‌کشی
 
 👨‍💻 سازنده ربات: @H0lwin_P
-🔗 کانال رسمی: @your_channel
+🔗 کانال رسمی: @HError_404
 
 از اعتماد شما به ربات ما سپاسگزاریم. امیدواریم تجربه خوبی داشته باشید!""",
     'bonus_already_claimed': "⚠️ شما جایزه روزانه خود را اخیراً دریافت کرده‌اید. لطفاً 24 ساعت بعد دوباره امتحان کنید!",
@@ -584,7 +584,7 @@ def show_about_us(call):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
         types.InlineKeyboardButton(get_text('chat_with_creator'), url="https://t.me/H0lwin_P"),
-        types.InlineKeyboardButton(get_text('creator_channel'), url="https://t.me/your_channel"),
+        types.InlineKeyboardButton(get_text('creator_channel'), url="https://t.me/HError_404"),
         types.InlineKeyboardButton(get_text('back_button'), callback_data="back_to_main")
     )
     bot.edit_message_text(chat_id=call.message.chat.id,
@@ -592,29 +592,35 @@ def show_about_us(call):
                           text=about_text,
                           reply_markup=markup)
 
-# تغییر تابع جایزه روزانه: امتیاز ثابت 2 و تنها یکبار در هر 24 ساعت
+# تابع جایزه روزانه: هر کاربر تنها یکبار در هر 24 ساعت (از زمان دریافت آخرین جایزه) می‌تواند 2 امتیاز ثابت بگیرد.
 def give_daily_bonus(call):
     user_id = call.from_user.id
-    now = JalaliDateTime.now(pytz.timezone('Asia/Tehran'))
-    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    tehran = pytz.timezone('Asia/Tehran')
+    now_dt = datetime.now(tehran)
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT last_bonus_date FROM users WHERE user_id = ?', (user_id,))
     last_bonus = cursor.fetchone()
+    
     if last_bonus and last_bonus[0]:
         try:
-            last_bonus_dt = datetime.strptime(last_bonus[0], "%Y-%m-%d %H:%M:%S")
-            if datetime.now() < last_bonus_dt + timedelta(hours=24):
+            # فرض می‌کنیم تاریخ ذخیره شده در بانک به وقت تهران است
+            last_bonus_dt = tehran.localize(datetime.strptime(last_bonus[0], "%Y-%m-%d %H:%M:%S"))
+            if now_dt < last_bonus_dt + timedelta(hours=24):
                 bot.answer_callback_query(call.id, get_text('bonus_already_claimed'), show_alert=True)
                 conn.close()
                 return
         except Exception as e:
             logger.error("Error parsing last_bonus_date: " + str(e))
+    
     bonus_points = 2
     cursor.execute('UPDATE users SET points = points + ?, last_bonus_date = ? WHERE user_id = ?',
                    (bonus_points, now_str, user_id))
     conn.commit()
     conn.close()
+    
     bot.answer_callback_query(call.id, get_text('bonus_claimed'), show_alert=True)
     show_user_profile(call)
 
@@ -646,7 +652,7 @@ def handle_admin_buttons(call):
     if call.data == "start_lottery":
         ask_for_winner_count(call)
     elif call.data == "lottery_status":
-        # گزارش: نمایش تعداد کاربران، مجموع امتیازات، ثبت نام‌های امروز و تعداد قرعه کشی‌های انجام شده
+        # گزارش: نمایش تعداد کاربران، مجموع امتیازات، ثبت نام‌های امروز و تعداد قرعه‌کشی‌های انجام شده
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT COUNT(*) FROM users')
@@ -659,7 +665,7 @@ def handle_admin_buttons(call):
         cursor.execute('SELECT COUNT(*) FROM lottery_history')
         total_lotteries = cursor.fetchone()[0]
         conn.close()
-        report_text = f"📊 گزارش ربات:\n\n👥 تعداد کاربران: {total_users}\n⭐️ مجموع امتیازات: {total_points}\n📝 ثبت نام‌های امروز: {today_registrations}\n🎰 تعداد قرعه کشی‌های انجام شده: {total_lotteries}"
+        report_text = f"📊 گزارش ربات:\n\n👥 تعداد کاربران: {total_users}\n⭐️ مجموع امتیازات: {total_points}\n📝 ثبت نام‌های امروز: {today_registrations}\n🎰 تعداد قرعه‌کشی‌های انجام شده: {total_lotteries}"
         bot.edit_message_text(chat_id=call.message.chat.id,
                               message_id=call.message.message_id,
                               text=report_text,
