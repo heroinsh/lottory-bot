@@ -1,114 +1,166 @@
 #!/bin/bash
-
 # =========================================
 # 🤖 Telegram Lottory Bot Installer by Shayan 🤖
+#
+# این اسکریپت جهت نصب و پیکربندی خودکار ربات تلگرامی Lottory
+# طراحی شده است. این ربات جهت اجرای قرعه‌کشی در تلگرام ساخته شده.
+#
+# از توزیع‌های Ubuntu/Debian و Arch Linux پشتیبانی می‌کند.
 # =========================================
+
+set -e  # خروج در صورت بروز خطا
+
+# تابع بررسی توزیع سیستم‌عامل
+check_distribution() {
+  if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    DISTRO_ID=$ID
+    DISTRO_NAME=$NAME
+    DISTRO_VERSION=$VERSION
+  else
+    echo "❌ Unable to detect distribution."
+    exit 1
+  fi
+}
+
+# نصب برای سیستم‌های Ubuntu/Debian
+install_ubuntu_debian() {
+  echo "🟢 Detected Ubuntu/Debian based system."
+  echo "🔄 Updating and upgrading the system..."
+  sudo apt update -y && sudo apt upgrade -y
+
+  echo "📦 Installing required dependencies (git, python3, pip)..."
+  sudo apt install -y git python3 python3-pip
+
+  echo "📥 Cloning the Lottory Bot repository..."
+  git clone https://github.com/heroinsh/lottory-bot.git
+  cd lottory-bot || { echo "❌ Failed to enter directory lottory-bot."; exit 1; }
+
+  echo "📦 Installing Python dependencies..."
+  if [ -f requirements.txt ]; then
+    pip3 install -r requirements.txt
+  else
+    # نصب پکیج‌های مورد نیاز (توجه: برخی ماژول‌ها مانند logging، time، random، threading و sqlite3 از پیش نصب هستند)
+    pip3 install pyTelegramBotAPI jdatetime pytz persiantools schedule
+  fi
+
+  echo -n "🤖 Enter your Telegram Bot Token: "
+  read -r bot_token
+  if [ -z "$bot_token" ]; then
+      echo "❌ Bot token cannot be empty. Exiting..."
+      exit 1
+  fi
+
+  echo -n "👤 Enter Admin Chat ID: "
+  read -r admin_chat_id
+  if [ -z "$admin_chat_id" ]; then
+      echo "❌ Admin Chat ID cannot be empty. Exiting..."
+      exit 1
+  fi
+
+  # به‌روزرسانی فایل lottory.py با استفاده از sed
+  sed -i "s/^TOKEN = .*/TOKEN = '$bot_token'/" lottory.py
+  sed -i "s/^ADMIN_USER_ID = .*/ADMIN_USER_ID = $admin_chat_id/" lottory.py
+
+  echo "✅ Configuration updated successfully!"
+  echo "🚀 Starting the Lottory Bot..."
+  nohup python3 lottory.py > bot.log 2>&1 &
+  echo "📜 Bot is running in the background. Check bot.log for logs."
+}
+
+# نصب برای سیستم‌های Arch Linux
+install_arch() {
+  echo "🟢 Detected Arch Linux based system."
+  echo "🔄 Updating and upgrading the system..."
+  sudo pacman -Syu --noconfirm
+
+  echo "📦 Installing required dependencies (git, python, pip)..."
+  sudo pacman -S --noconfirm git python python-pip
+
+  echo "📥 Cloning the Lottory Bot repository..."
+  git clone https://github.com/heroinsh/lottory-bot.git
+  cd lottory-bot || { echo "❌ Failed to enter directory lottory-bot."; exit 1; }
+
+  echo "📦 Installing Python dependencies..."
+  if [ -f requirements.txt ]; then
+    pip3 install -r requirements.txt
+  else
+    pip3 install pyTelegramBotAPI jdatetime pytz persiantools schedule
+  fi
+
+  echo -n "🤖 Enter your Telegram Bot Token: "
+  read -r bot_token
+  if [ -z "$bot_token" ]; then
+      echo "❌ Bot token cannot be empty. Exiting..."
+      exit 1
+  fi
+
+  echo -n "👤 Enter Admin Chat ID: "
+  read -r admin_chat_id
+  if [ -z "$admin_chat_id" ]; then
+      echo "❌ Admin Chat ID cannot be empty. Exiting..."
+      exit 1
+  fi
+
+  sed -i "s/^TOKEN = .*/TOKEN = '$bot_token'/" lottory.py
+  sed -i "s/^ADMIN_USER_ID = .*/ADMIN_USER_ID = $admin_chat_id/" lottory.py
+
+  echo "✅ Configuration updated successfully!"
+  echo "🚀 Starting the Lottory Bot..."
+  nohup python3 lottory.py > bot.log 2>&1 &
+  echo "📜 Bot is running in the background. Check bot.log for logs."
+}
+
+# تابع حذف ربات
+remove_bot() {
+  echo "🔍 Checking if Lottory Bot is running..."
+  pkill -f "python3 lottory.py" || echo "ℹ️ No running bot process found."
+  
+  if [ -d "lottory-bot" ]; then
+    echo "🗑 Removing the lottory-bot directory..."
+    rm -rf lottory-bot
+  else
+    echo "ℹ️ lottory-bot directory does not exist."
+  fi
+  echo "✅ Lottory Bot has been removed successfully."
+}
+
+# -------------------------------
+# Main Execution
+# -------------------------------
 clear
 echo "========================================="
 echo "🤖 Telegram Lottory Bot Installer by Shayan 🤖"
 echo "========================================="
-echo "1️⃣ Install Telegram Bot"
-echo "2️⃣ Remove Telegram Bot"
-echo "3️⃣ Exit"
+echo "1) Install Lottory Bot"
+echo "2) Remove Lottory Bot"
+echo "3) Exit"
 echo -n "👉 Choose an option (1/2/3): "
-read option
+read -r option
 
-# 🔍 تشخیص مدیریت پکیج سیستم
-if command -v apt >/dev/null 2>&1; then
-    PKG_MANAGER="apt"
-elif command -v yum >/dev/null 2>&1; then
-    PKG_MANAGER="yum"
-elif command -v dnf >/dev/null 2>&1; then
-    PKG_MANAGER="dnf"
-elif command -v pacman >/dev/null 2>&1; then
-    PKG_MANAGER="pacman"
-elif command -v brew >/dev/null 2>&1; then
-    PKG_MANAGER="brew"
-else
-    echo "❌ No supported package manager found. Exiting..."
-    exit 1
-fi
+check_distribution
+echo "Detected distribution: $DISTRO_NAME ($DISTRO_ID)"
 
-# ================================
-# 🚀 **نصب ربات**
-# ================================
-if [ "$option" == "1" ]; then
-    echo "🔄 Updating and upgrading the server..."
-    if [[ "$PKG_MANAGER" == "apt" ]]; then
-        sudo apt update && sudo apt upgrade -y
-    elif [[ "$PKG_MANAGER" == "yum" || "$PKG_MANAGER" == "dnf" ]]; then
-        sudo $PKG_MANAGER update -y
-    elif [[ "$PKG_MANAGER" == "pacman" ]]; then
-        sudo pacman -Syu --noconfirm
-    elif [[ "$PKG_MANAGER" == "brew" ]]; then
-        brew update
+case $option in
+  1)
+    if [[ "$DISTRO_ID" == "ubuntu" || "$DISTRO_ID" == "debian" ]]; then
+      install_ubuntu_debian
+    elif [[ "$DISTRO_ID" == "arch" ]]; then
+      install_arch
+    else
+      echo "❌ Unsupported distribution: $DISTRO_NAME. Exiting..."
+      exit 1
     fi
-
-    echo "📦 Installing required dependencies..."
-    if [[ "$PKG_MANAGER" == "apt" ]]; then
-        sudo apt install -y git python3 python3-pip
-    elif [[ "$PKG_MANAGER" == "yum" || "$PKG_MANAGER" == "dnf" ]]; then
-        sudo $PKG_MANAGER install -y git python3 python3-pip
-    elif [[ "$PKG_MANAGER" == "pacman" ]]; then
-        sudo pacman -S --noconfirm git python python-pip
-    elif [[ "$PKG_MANAGER" == "brew" ]]; then
-        brew install git python
-    fi
-
-    # 📥 **کلون کردن پروژه از گیت‌هاب**
-    echo "📥 Cloning the Lottory Bot repository..."
-    git clone https://github.com/heroinsh/lottory-bot.git
-    cd lottory-bot || { echo "❌ Failed to enter directory"; exit 1; }
-
-    # 📦 **نصب کتابخانه‌های مورد نیاز پایتون**
-    echo "📦 Installing required Python libraries..."
-    pip3 install -r requirements.txt || pip3 install \
-        telebot sqlite3 logging random time threading \
-        jdatetime pytz persiantools schedule uuid
-
-    # 📝 **دریافت توکن ربات از کاربر**
-    echo -n "🤖 Enter your Telegram Bot Token: "
-    read bot_token
-    if [[ -z "$bot_token" ]]; then
-        echo "❌ Token cannot be empty! Exiting..."
-        exit 1
-    fi
-    sed -i "16s|TOKEN = ''|TOKEN = '$bot_token'|" lottory.py
-
-    # 📝 **دریافت Chat ID ادمین**
-    echo -n "👤 Enter Admin Chat ID: "
-    read admin_chat_id
-    if [[ -z "$admin_chat_id" ]]; then
-        echo "❌ Admin Chat ID cannot be empty! Exiting..."
-        exit 1
-    fi
-    sed -i "17s|ADMIN_USER_ID =|ADMIN_USER_ID = $admin_chat_id|" lottory.py
-
-    # ✅ **تأیید و اجرای ربات**
-    echo "✅ Configuration completed successfully!"
-    echo "🚀 Starting the bot..."
-    nohup python3 lottory.py > bot.log 2>&1 &
-
-    echo "📜 Bot is running in the background! Use 'tail -f bot.log' to see logs."
-
-# ================================
-# ❌ **حذف ربات**
-# ================================
-elif [ "$option" == "2" ]; then
-    echo "🔍 Checking if the bot is running..."
-    pkill -f "python3 lottory.py"
-    
-    echo "🗑 Removing the bot directory..."
-    rm -rf lottory-bot
-
-    echo "✅ Lottory Bot has been removed successfully."
-
-# ================================
-# 🚪 **خروج**
-# ================================
-elif [ "$option" == "3" ]; then
+    ;;
+  2)
+    remove_bot
+    ;;
+  3)
     echo "👋 Exiting..."
     exit 0
-else
-    echo "❌ Invalid option! Please select 1, 2, or 3."
-fi
+    ;;
+  *)
+    echo "❌ Invalid option. Exiting..."
+    exit 1
+    ;;
+esac
